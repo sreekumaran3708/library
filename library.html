@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LibraryOS — Management System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<style>
+:root {
+  --bg: #0e1117;
+  --surface: #161b27;
+  --surface2: #1e2535;
+  --border: #2a3347;
+  --accent: #c8a96e;
+  --accent2: #e8c98e;
+  --danger: #e05252;
+  --success: #4caf7d;
+  --warning: #f0a500;
+  --info: #4a9eff;
+  --text: #e8e8f0;
+  --text-muted: #7a8499;
+  --sidebar-w: 230px;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; padding: 1.5rem 0; }
+.logo { display: flex; align-items: center; gap: 0.6rem; padding: 0 1.25rem 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+.logo-icon { font-size: 1.6rem; }
+.logo-text { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--accent); letter-spacing: 0.02em; }
+.nav-menu { display: flex; flex-direction: column; gap: 2px; padding: 0 0.75rem; flex: 1; }
+.nav-item { display: flex; align-items: center; gap: 0.7rem; padding: 0.65rem 0.85rem; border-radius: 8px; color: var(--text-muted); text-decoration: none; font-size: 0.88rem; font-weight: 500; transition: all 0.18s; cursor: pointer; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: rgba(200,169,110,0.12); color: var(--accent); }
+.nav-icon { font-size: 1rem; width: 1.2rem; text-align: center; }
+.sidebar-footer { padding: 1rem 1.25rem 0; border-top: 1px solid var(--border); }
+.db-status { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.78rem; }
+.db-dot { width: 7px; height: 7px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* MAIN */
+.main-content { margin-left: var(--sidebar-w); flex: 1; padding: 2rem; min-height: 100vh; max-width: calc(100vw - var(--sidebar-w)); }
+.page { display: none; animation: fadeIn 0.25s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; }
+.page-header h1 { font-family: 'Playfair Display', serif; font-size: 1.75rem; color: var(--text); }
+#current-date { color: var(--text-muted); font-size: 0.85rem; }
+
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; display: flex; align-items: center; gap: 1rem; transition: transform 0.2s; }
+.stat-card:hover { transform: translateY(-2px); }
+.stat-icon { font-size: 2rem; }
+.stat-info { display: flex; flex-direction: column; }
+.stat-num { font-size: 1.75rem; font-weight: 700; color: var(--text); line-height: 1; }
+.stat-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+.books-card { border-left: 3px solid var(--info); }
+.lent-card { border-left: 3px solid var(--accent); }
+.overdue-card { border-left: 3px solid var(--danger); }
+.students-card { border-left: 3px solid var(--success); }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.card-header h3 { font-size: 0.95rem; font-weight: 600; }
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-card { max-width: 860px; }
+.form-card h3 { font-size: 1rem; margin-bottom: 1.25rem; color: var(--text-muted); }
+
+/* TABLE */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.data-table th { background: var(--surface2); color: var(--text-muted); font-weight: 600; text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(42,51,71,0.5); vertical-align: middle; }
+.data-table tbody tr:hover { background: var(--surface2); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+
+/* BADGES */
+.badge { padding: 0.2rem 0.55rem; border-radius: 99px; font-size: 0.73rem; font-weight: 600; }
+.badge-danger { background: rgba(224,82,82,0.15); color: var(--danger); }
+.badge-success { background: rgba(76,175,125,0.15); color: var(--success); }
+.badge-warning { background: rgba(240,165,0,0.15); color: var(--warning); }
+.badge-info { background: rgba(74,158,255,0.15); color: var(--info); }
+
+/* FORMS */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.form-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+.form-group input, .form-group select, .form-group textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 0.6rem 0.75rem; font-family: inherit; font-size: 0.88rem; transition: border-color 0.15s; outline: none; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group input::placeholder { color: var(--text-muted); }
+.readonly-field { opacity: 0.6; cursor: not-allowed; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1.1rem; border-radius: 7px; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 600; transition: all 0.18s; }
+.btn-primary { background: var(--accent); color: #1a1000; }
+.btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { opacity: 0.85; }
+.btn-success { background: var(--success); color: white; }
+.btn-sm { padding: 0.3rem 0.65rem; font-size: 0.78rem; }
+.btn-large { width: 100%; justify-content: center; padding: 0.85rem; font-size: 0.95rem; }
+
+/* SEARCH */
+.search-bar-row, .filter-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+.search-input { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 0.6rem 0.85rem; font-family: inherit; font-size: 0.88rem; outline: none; flex: 1; }
+.search-input:focus { border-color: var(--accent); }
+.search-input.wide { width: 100%; }
+.filter-select { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 0.6rem 0.85rem; font-family: inherit; font-size: 0.88rem; outline: none; cursor: pointer; }
+
+/* MODALS */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+.modal-overlay.hidden { display: none; }
+.modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; width: 640px; max-width: 96vw; max-height: 90vh; overflow-y: auto; animation: modalIn 0.22s ease; }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(12px); } to { opacity: 1; transform: none; } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.modal-header h2 { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--accent); }
+.modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer; transition: color 0.15s; }
+.modal-close:hover { color: var(--danger); }
+.overdue-box { text-align: center; max-width: 520px; }
+.overdue-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+.overdue-box h2 { color: var(--danger); font-size: 1.4rem; margin-bottom: 1rem; }
+#overdue-list { text-align: left; margin-bottom: 1.25rem; max-height: 280px; overflow-y: auto; }
+
+/* NOTIFICATION BANNER */
+.notif-banner { position: fixed; top: 0; left: var(--sidebar-w); right: 0; background: var(--danger); color: white; padding: 0.7rem 1.5rem; display: flex; align-items: center; justify-content: space-between; z-index: 999; font-weight: 500; font-size: 0.88rem; }
+.notif-banner.success { background: var(--success); }
+.notif-banner.info { background: var(--info); }
+.notif-banner button { background: none; border: none; color: white; font-size: 1rem; cursor: pointer; opacity: 0.8; }
+.notif-banner.hidden { display: none; }
+
+/* SQL CONSOLE */
+.sql-textarea { width: 100%; background: #0a0c12; border: 1px solid var(--border); border-radius: 8px; color: #a8d8a8; font-family: 'Courier New', monospace; font-size: 0.85rem; padding: 0.85rem; min-height: 120px; resize: vertical; outline: none; line-height: 1.6; }
+.sql-result { margin-top: 1rem; overflow-x: auto; }
+.sql-result table { min-width: 100%; }
+.sql-error { color: var(--danger); font-size: 0.85rem; padding: 0.5rem; }
+.quick-reports { display: flex; flex-direction: column; gap: 0.5rem; }
+.report-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 0.65rem 1rem; text-align: left; cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: all 0.15s; }
+.report-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(200,169,110,0.07); }
+.reports-grid { display: grid; grid-template-columns: 1fr 280px; gap: 1rem; }
+.action-btn-group { display: flex; gap: 0.3rem; }
+.empty-state { text-align: center; color: var(--text-muted); padding: 2.5rem; font-size: 0.88rem; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+@media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr 1fr; } .dashboard-grid { grid-template-columns: 1fr; } .reports-grid { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .sidebar { width: 60px; } .logo-text, .nav-item span:not(.nav-icon), .sidebar-footer .db-status span:last-child { display: none; } .main-content { margin-left: 60px; padding: 1rem; } .stats-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- NOTIFICATION BANNER -->
+<div id="notification-banner" class="notif-banner hidden">
+  <span id="notif-text"></span>
+  <button onclick="dismissNotif()">✕</button>
+</div>
+
+<!-- OVERDUE ALERT POPUP -->
+<div id="overdue-modal" class="modal-overlay hidden">
+  <div class="modal-box overdue-box">
+    <div class="overdue-icon">⚠️</div>
+    <h2>Overdue Books Alert!</h2>
+    <div id="overdue-list"></div>
+    <button class="btn btn-danger" onclick="closeOverdue()">Acknowledge</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <span class="logo-icon">📚</span>
+    <span class="logo-text">LibraryOS</span>
+  </div>
+  <nav class="nav-menu">
+    <a href="#" class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">🏠</span> <span>Dashboard</span></a>
+    <a href="#" class="nav-item" onclick="showPage('books')"><span class="nav-icon">📖</span> <span>Book Inventory</span></a>
+    <a href="#" class="nav-item" onclick="showPage('lend')"><span class="nav-icon">🔄</span> <span>Lend a Book</span></a>
+    <a href="#" class="nav-item" onclick="showPage('lending')"><span class="nav-icon">📋</span> <span>Lending Records</span></a>
+    <a href="#" class="nav-item" onclick="showPage('students')"><span class="nav-icon">🎓</span> <span>Students</span></a>
+    <a href="#" class="nav-item" onclick="showPage('return')"><span class="nav-icon">↩️</span> <span>Return Book</span></a>
+    <a href="#" class="nav-item" onclick="showPage('reports')"><span class="nav-icon">📊</span> <span>Reports</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="db-status"><span class="db-dot"></span> <span>SQLite Active</span></div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+  <!-- DASHBOARD -->
+  <section id="page-dashboard" class="page active">
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <span id="current-date"></span>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card books-card"><div class="stat-icon">📚</div><div class="stat-info"><span class="stat-num" id="stat-total-books">0</span><span class="stat-label">Total Books</span></div></div>
+      <div class="stat-card lent-card"><div class="stat-icon">🔄</div><div class="stat-info"><span class="stat-num" id="stat-lent">0</span><span class="stat-label">Currently Lent</span></div></div>
+      <div class="stat-card overdue-card"><div class="stat-icon">⚠️</div><div class="stat-info"><span class="stat-num" id="stat-overdue">0</span><span class="stat-label">Overdue</span></div></div>
+      <div class="stat-card students-card"><div class="stat-icon">🎓</div><div class="stat-info"><span class="stat-num" id="stat-students">0</span><span class="stat-label">Registered Students</span></div></div>
+    </div>
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header"><h3>⚠️ Overdue Books</h3><span class="badge badge-danger" id="overdue-count-badge">0</span></div>
+        <table class="data-table" id="overdue-table">
+          <thead><tr><th>Student</th><th>Book</th><th>Due Date</th><th>Days Late</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>🆕 Recently Added Books</h3></div>
+        <table class="data-table" id="recent-books-table">
+          <thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Stock</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOOK INVENTORY -->
+  <section id="page-books" class="page">
+    <div class="page-header">
+      <h1>Book Inventory</h1>
+      <button class="btn btn-primary" onclick="openModal('add-book-modal')">+ Add New Book</button>
+    </div>
+    <div class="search-bar-row">
+      <input type="text" id="book-search" placeholder="Search by title, author, ISBN..." oninput="loadBooks()" class="search-input"/>
+      <select id="category-filter" onchange="loadBooks()" class="filter-select">
+        <option value="">All Categories</option>
+        <option>Fiction</option><option>Non-Fiction</option><option>Science</option>
+        <option>Technology</option><option>History</option><option>Mathematics</option>
+        <option>Literature</option><option>Reference</option><option>Other</option>
+      </select>
+    </div>
+    <div class="card">
+      <table class="data-table" id="books-table">
+        <thead><tr><th>ID</th><th>Title</th><th>Author</th><th>ISBN</th><th>Category</th><th>Total</th><th>Available</th><th>Added On</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- LEND BOOK -->
+  <section id="page-lend" class="page">
+    <div class="page-header"><h1>Lend a Book</h1></div>
+    <div class="card form-card">
+      <h3>Issue Book to Student</h3>
+      <div class="form-grid">
+        <div class="form-group"><label>Student Name *</label><input type="text" id="lend-student-name" placeholder="Enter student name" list="student-suggestions"/><datalist id="student-suggestions"></datalist></div>
+        <div class="form-group"><label>Student Phone / ID *</label><input type="text" id="lend-student-phone" placeholder="Phone or Roll Number"/></div>
+        <div class="form-group"><label>Student Email</label><input type="email" id="lend-student-email" placeholder="student@email.com"/></div>
+        <div class="form-group"><label>Book *</label><select id="lend-book-select"><option value="">-- Select Available Book --</option></select></div>
+        <div class="form-group"><label>Lend Date *</label><input type="date" id="lend-date"/></div>
+        <div class="form-group"><label>Return Period (Days) *</label><input type="number" id="lend-days" placeholder="e.g. 14" min="1" max="90"/></div>
+        <div class="form-group"><label>Due Date (Auto-calculated)</label><input type="date" id="lend-due-date" readonly class="readonly-field"/></div>
+        <div class="form-group"><label>Notes</label><input type="text" id="lend-notes" placeholder="Optional notes"/></div>
+      </div>
+      <button class="btn btn-primary btn-large" onclick="lendBook()">📤 Issue Book</button>
+    </div>
+  </section>
+
+  <!-- LENDING RECORDS -->
+  <section id="page-lending" class="page">
+    <div class="page-header"><h1>Lending Records</h1></div>
+    <div class="filter-row">
+      <select id="lending-filter" onchange="loadLending()" class="filter-select">
+        <option value="all">All Records</option>
+        <option value="active">Currently Lent</option>
+        <option value="overdue">Overdue Only</option>
+        <option value="returned">Returned</option>
+      </select>
+      <input type="text" id="lending-search" placeholder="Search student or book..." oninput="loadLending()" class="search-input"/>
+    </div>
+    <div class="card">
+      <table class="data-table" id="lending-table">
+        <thead><tr><th>ID</th><th>Student</th><th>Phone</th><th>Book</th><th>Lend Date</th><th>Due Date</th><th>Status</th><th>Days</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- STUDENTS -->
+  <section id="page-students" class="page">
+    <div class="page-header"><h1>Students</h1></div>
+    <div class="card">
+      <table class="data-table" id="students-table">
+        <thead><tr><th>Name</th><th>Phone/ID</th><th>Email</th><th>Books Lent</th><th>Active Loans</th><th>Overdue</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- RETURN BOOK -->
+  <section id="page-return" class="page">
+    <div class="page-header"><h1>Return a Book</h1></div>
+    <div class="card form-card">
+      <h3>Search Active Lending</h3>
+      <div class="form-group" style="margin-bottom:1rem;">
+        <input type="text" id="return-search" placeholder="Enter student name or book title..." oninput="searchReturn()" class="search-input wide"/>
+      </div>
+      <table class="data-table" id="return-table">
+        <thead><tr><th>Student</th><th>Book</th><th>Due Date</th><th>Status</th><th>Fine (₹)</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="page-reports" class="page">
+    <div class="page-header"><h1>Reports & SQL Console</h1></div>
+    <div class="reports-grid">
+      <div class="card">
+        <div class="card-header"><h3>🔍 SQL Console</h3></div>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.75rem;">Run any SQL query — press Ctrl+Enter to execute</p>
+        <textarea id="sql-console" class="sql-textarea" placeholder="SELECT * FROM books LIMIT 10;"></textarea>
+        <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+          <button class="btn btn-primary" onclick="runSQL()">▶ Run Query</button>
+          <button class="btn btn-secondary" onclick="clearSQL()">Clear</button>
+        </div>
+        <div id="sql-result" class="sql-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>📋 Quick Reports</h3></div>
+        <div class="quick-reports">
+          <button class="report-btn" onclick="quickReport('top_borrowed')">Most Borrowed Books</button>
+          <button class="report-btn" onclick="quickReport('active_students')">Most Active Students</button>
+          <button class="report-btn" onclick="quickReport('overdue_all')">All Overdue Records</button>
+          <button class="report-btn" onclick="quickReport('low_stock')">Low Stock Books (≤2)</button>
+          <button class="report-btn" onclick="quickReport('returned_week')">Returned This Week</button>
+          <button class="report-btn" onclick="quickReport('schema')">View DB Schema</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ADD BOOK MODAL -->
+<div id="add-book-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header"><h2>Add New Book</h2><button class="modal-close" onclick="closeModal('add-book-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Title *</label><input type="text" id="book-title" placeholder="Book title"/></div>
+      <div class="form-group"><label>Author *</label><input type="text" id="book-author" placeholder="Author name"/></div>
+      <div class="form-group"><label>ISBN</label><input type="text" id="book-isbn" placeholder="978-..."/></div>
+      <div class="form-group"><label>Publisher</label><input type="text" id="book-publisher" placeholder="Publisher name"/></div>
+      <div class="form-group"><label>Category</label>
+        <select id="book-category"><option>Fiction</option><option>Non-Fiction</option><option>Science</option><option>Technology</option><option>History</option><option>Mathematics</option><option>Literature</option><option>Reference</option><option>Other</option></select>
+      </div>
+      <div class="form-group"><label>Publication Year</label><input type="number" id="book-year" placeholder="2024" min="1800" max="2030"/></div>
+      <div class="form-group"><label>Total Copies *</label><input type="number" id="book-copies" placeholder="1" min="1"/></div>
+      <div class="form-group"><label>Shelf Location</label><input type="text" id="book-shelf" placeholder="e.g. A-12"/></div>
+    </div>
+    <button class="btn btn-primary btn-large" onclick="addBook()">📚 Add to Library</button>
+  </div>
+</div>
+
+<!-- EDIT BOOK MODAL -->
+<div id="edit-book-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header"><h2>Edit Book</h2><button class="modal-close" onclick="closeModal('edit-book-modal')">✕</button></div>
+    <input type="hidden" id="edit-book-id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>Title *</label><input type="text" id="edit-book-title"/></div>
+      <div class="form-group"><label>Author *</label><input type="text" id="edit-book-author"/></div>
+      <div class="form-group"><label>ISBN</label><input type="text" id="edit-book-isbn"/></div>
+      <div class="form-group"><label>Publisher</label><input type="text" id="edit-book-publisher"/></div>
+      <div class="form-group"><label>Category</label>
+        <select id="edit-book-category"><option>Fiction</option><option>Non-Fiction</option><option>Science</option><option>Technology</option><option>History</option><option>Mathematics</option><option>Literature</option><option>Reference</option><option>Other</option></select>
+      </div>
+      <div class="form-group"><label>Year</label><input type="number" id="edit-book-year"/></div>
+      <div class="form-group"><label>Total Copies</label><input type="number" id="edit-book-copies" min="1"/></div>
+      <div class="form-group"><label>Shelf Location</label><input type="text" id="edit-book-shelf"/></div>
+    </div>
+    <button class="btn btn-primary btn-large" onclick="updateBook()">💾 Save Changes</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DATABASE LAYER — All SQL queries via sql.js (SQLite WASM)
+   ============================================================ */
+let db = null;
+let SQL = null;
+const FINE_PER_DAY = 2; // ₹2 per day overdue — change here if needed
+
+async function initDB() {
+  SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+  const saved = localStorage.getItem('libraryDB');
+  if (saved) {
+    db = new SQL.Database(new Uint8Array(JSON.parse(saved)));
+  } else {
+    db = new SQL.Database();
+    createSchema();
+    seedSampleData();
+  }
+  setInterval(saveDB, 30000);
+}
+
+function saveDB() {
+  localStorage.setItem('libraryDB', JSON.stringify(Array.from(db.export())));
+}
+
+function createSchema() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL, author TEXT NOT NULL, isbn TEXT UNIQUE,
+      publisher TEXT, category TEXT DEFAULT 'Other', year INTEGER,
+      total_copies INTEGER NOT NULL DEFAULT 1,
+      available_copies INTEGER NOT NULL DEFAULT 1,
+      shelf_location TEXT, added_on TEXT DEFAULT (date('now')), is_active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS students (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, phone TEXT NOT NULL UNIQUE, email TEXT,
+      registered_on TEXT DEFAULT (date('now'))
+    );
+    CREATE TABLE IF NOT EXISTS lending (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL, book_id INTEGER NOT NULL,
+      lend_date TEXT NOT NULL, due_date TEXT NOT NULL,
+      return_date TEXT, fine_amount REAL DEFAULT 0,
+      notes TEXT, status TEXT DEFAULT 'active',
+      FOREIGN KEY(student_id) REFERENCES students(id),
+      FOREIGN KEY(book_id) REFERENCES books(id)
+    );
+  `);
+}
+
+function seedSampleData() {
+  [
+    ['The Alchemist','Paulo Coelho','978-0062315007','HarperOne','Fiction',1988,5],
+    ['Clean Code','Robert C. Martin','978-0132350884','Prentice Hall','Technology',2008,3],
+    ['A Brief History of Time','Stephen Hawking','978-0553380163','Bantam Books','Science',1988,4],
+    ['Introduction to Algorithms','CLRS','978-0262033848','MIT Press','Technology',2009,2],
+    ['Sapiens','Yuval Noah Harari','978-0062316097','Harper','History',2011,4],
+    ['To Kill a Mockingbird','Harper Lee','978-0061935466','Harper Perennial','Literature',1960,3],
+    ['Thinking, Fast and Slow','Daniel Kahneman','978-0374533557','FSG','Non-Fiction',2011,2],
+    ['The Great Gatsby','F. Scott Fitzgerald','978-0743273565','Scribner','Literature',1925,6],
+  ].forEach(([t,a,i,p,c,y,n]) => {
+    db.run(`INSERT OR IGNORE INTO books (title,author,isbn,publisher,category,year,total_copies,available_copies) VALUES (?,?,?,?,?,?,?,?)`,[t,a,i,p,c,y,n,n]);
+  });
+  [
+    ['Arjun Sharma','9876543210','arjun@college.edu'],
+    ['Priya Nair','9876543211','priya@college.edu'],
+    ['Rahul Verma','9876543212','rahul@college.edu'],
+    ['Ananya Iyer','9876543213','ananya@college.edu'],
+  ].forEach(([n,p,e]) => db.run(`INSERT OR IGNORE INTO students (name,phone,email) VALUES (?,?,?)`,[n,p,e]));
+  saveDB();
+}
+
+// ── Query helpers ──
+function execQuery(sql, params = []) {
+  try {
+    const stmt = db.prepare(sql); stmt.bind(params);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    stmt.free(); return rows;
+  } catch(e) { console.error('SQL:', e.message); return []; }
+}
+function execRaw(sql) {
+  try { return { ok: true, results: db.exec(sql) }; }
+  catch(e) { return { ok: false, error: e.message }; }
+}
+
+// ── Book queries ──
+function dbGetBooks(search='', category='') {
+  let sql = `SELECT * FROM books WHERE is_active=1`, p=[];
+  if (search) { sql+=` AND (title LIKE ? OR author LIKE ? OR isbn LIKE ?)`; p.push(`%${search}%`,`%${search}%`,`%${search}%`); }
+  if (category) { sql+=` AND category=?`; p.push(category); }
+  return execQuery(sql+` ORDER BY added_on DESC, id DESC`, p);
+}
+function dbGetAvailableBooks() { return execQuery(`SELECT * FROM books WHERE available_copies>0 AND is_active=1 ORDER BY title`); }
+function dbAddBook(t,a,i,p,c,y,n,s) { db.run(`INSERT INTO books (title,author,isbn,publisher,category,year,total_copies,available_copies,shelf_location) VALUES (?,?,?,?,?,?,?,?,?)`,[t,a,i||null,p||null,c,y||null,n,n,s||null]); saveDB(); }
+function dbUpdateBook(id,t,a,i,p,c,y,n,s) {
+  const cur=execQuery(`SELECT total_copies,available_copies FROM books WHERE id=?`,[id]);
+  if(cur.length){ const diff=n-cur[0].total_copies, avail=Math.max(0,cur[0].available_copies+diff);
+    db.run(`UPDATE books SET title=?,author=?,isbn=?,publisher=?,category=?,year=?,total_copies=?,available_copies=?,shelf_location=? WHERE id=?`,[t,a,i||null,p||null,c,y||null,n,avail,s||null,id]); saveDB(); }
+}
+function dbDeleteBook(id) { db.run(`UPDATE books SET is_active=0 WHERE id=?`,[id]); saveDB(); }
+
+// ── Student queries ──
+function dbGetOrCreateStudent(name,phone,email) {
+  let r=execQuery(`SELECT * FROM students WHERE phone=?`,[phone]);
+  if(!r.length){ db.run(`INSERT INTO students (name,phone,email) VALUES (?,?,?)`,[name,phone,email||null]); r=execQuery(`SELECT * FROM students WHERE phone=?`,[phone]); }
+  saveDB(); return r[0];
+}
+function dbGetAllStudents() {
+  return execQuery(`SELECT s.*,COUNT(l.id) AS total_lent,SUM(CASE WHEN l.status='active' THEN 1 ELSE 0 END) AS active_loans,SUM(CASE WHEN l.status='overdue' THEN 1 ELSE 0 END) AS overdue_count FROM students s LEFT JOIN lending l ON s.id=l.student_id GROUP BY s.id ORDER BY s.name`);
+}
+function dbGetStudentNames() { return execQuery(`SELECT DISTINCT name FROM students ORDER BY name`); }
+
+// ── Lending queries ──
+function dbLendBook(sid,bid,ld,dd,notes) {
+  db.run(`INSERT INTO lending (student_id,book_id,lend_date,due_date,notes,status) VALUES (?,?,?,?,'active')`,[sid,bid,ld,dd]);
+  db.run(`UPDATE books SET available_copies=available_copies-1 WHERE id=?`,[bid]); saveDB();
+}
+function dbGetLending(filter='all', search='') {
+  db.run(`UPDATE lending SET status='overdue' WHERE status='active' AND due_date<date('now')`); saveDB();
+  let sql=`SELECT l.*,s.name AS student_name,s.phone,b.title AS book_title,CAST((julianday('now')-julianday(l.due_date)) AS INTEGER) AS days_late FROM lending l JOIN students s ON l.student_id=s.id JOIN books b ON l.book_id=b.id WHERE 1=1`,p=[];
+  if(filter==='active') sql+=` AND l.status='active'`;
+  else if(filter==='overdue') sql+=` AND l.status='overdue'`;
+  else if(filter==='returned') sql+=` AND l.status='returned'`;
+  if(search){ sql+=` AND (s.name LIKE ? OR b.title LIKE ? OR s.phone LIKE ?)`; p.push(`%${search}%`,`%${search}%`,`%${search}%`); }
+  return execQuery(sql+` ORDER BY l.due_date ASC, l.id DESC`, p);
+}
+function dbGetOverdue() {
+  return execQuery(`SELECT l.*,s.name AS student_name,s.phone,b.title AS book_title,CAST((julianday('now')-julianday(l.due_date)) AS INTEGER) AS days_late FROM lending l JOIN students s ON l.student_id=s.id JOIN books b ON l.book_id=b.id WHERE l.status IN ('active','overdue') AND l.due_date<date('now') ORDER BY l.due_date ASC`);
+}
+function dbReturnBook(id) {
+  const r=execQuery(`SELECT * FROM lending WHERE id=?`,[id]); if(!r.length) return;
+  const today=new Date().toISOString().split('T')[0];
+  const daysLate=Math.max(0,Math.floor((new Date(today)-new Date(r[0].due_date))/86400000));
+  const fine=daysLate*FINE_PER_DAY;
+  db.run(`UPDATE lending SET status='returned',return_date=?,fine_amount=? WHERE id=?`,[today,fine,id]);
+  db.run(`UPDATE books SET available_copies=available_copies+1 WHERE id=?`,[r[0].book_id]); saveDB();
+  return {daysLate, fine};
+}
+function dbGetStats() {
+  return {
+    totalBooks: execQuery(`SELECT COALESCE(SUM(total_copies),0) AS n FROM books WHERE is_active=1`)[0]?.n||0,
+    lent: execQuery(`SELECT COUNT(*) AS n FROM lending WHERE status IN ('active','overdue')`)[0]?.n||0,
+    overdue: execQuery(`SELECT COUNT(*) AS n FROM lending WHERE status='overdue' OR (status='active' AND due_date<date('now'))`)[0]?.n||0,
+    students: execQuery(`SELECT COUNT(*) AS n FROM students`)[0]?.n||0,
+    recentBooks: execQuery(`SELECT title,author,category,total_copies FROM books WHERE is_active=1 ORDER BY id DESC LIMIT 5`)
+  };
+}
+
+const REPORT_QUERIES = {
+  top_borrowed: `SELECT b.title, b.author, COUNT(l.id) AS times_borrowed FROM lending l JOIN books b ON l.book_id=b.id GROUP BY b.id ORDER BY times_borrowed DESC LIMIT 10`,
+  active_students: `SELECT s.name, s.phone, COUNT(l.id) AS active_loans FROM lending l JOIN students s ON l.student_id=s.id WHERE l.status IN ('active','overdue') GROUP BY s.id ORDER BY active_loans DESC LIMIT 10`,
+  overdue_all: `SELECT s.name AS student, s.phone, b.title AS book, l.due_date, CAST((julianday('now')-julianday(l.due_date)) AS INTEGER) AS days_overdue FROM lending l JOIN students s ON l.student_id=s.id JOIN books b ON l.book_id=b.id WHERE l.status='overdue' OR (l.status='active' AND l.due_date<date('now')) ORDER BY days_overdue DESC`,
+  low_stock: `SELECT title, author, category, available_copies, total_copies FROM books WHERE available_copies<=2 AND is_active=1 ORDER BY available_copies ASC`,
+  returned_week: `SELECT s.name AS student, b.title AS book, l.return_date, l.fine_amount FROM lending l JOIN students s ON l.student_id=s.id JOIN books b ON l.book_id=b.id WHERE l.status='returned' AND l.return_date>=date('now','-7 days') ORDER BY l.return_date DESC`,
+  schema: `SELECT name AS table_name, sql AS create_statement FROM sqlite_master WHERE type='table' ORDER BY name`
+};
+
+/* ============================================================
+   UI / APP LOGIC
+   ============================================================ */
+window.addEventListener('DOMContentLoaded', async () => {
+  await initDB();
+  document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('lend-date').value = new Date().toISOString().split('T')[0];
+  loadDashboard();
+  checkOverdueOnLoad();
+  populateLendDropdown();
+  populateStudentList();
+});
+
+// Navigation
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes(name)) n.classList.add('active'); });
+  if(name==='dashboard') loadDashboard();
+  if(name==='books') loadBooks();
+  if(name==='lending') loadLending();
+  if(name==='students') loadStudents();
+  if(name==='return') searchReturn();
+}
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// Notification
+function showNotif(msg, type='danger') {
+  const b=document.getElementById('notification-banner');
+  document.getElementById('notif-text').textContent=msg;
+  b.className=`notif-banner ${type}`;
+  setTimeout(()=>b.classList.add('hidden'),5000);
+}
+function dismissNotif() { document.getElementById('notification-banner').classList.add('hidden'); }
+
+// Overdue popup
+function checkOverdueOnLoad() {
+  const rows=dbGetOverdue();
+  if(rows.length>0){
+    document.getElementById('overdue-list').innerHTML=rows.map(r=>`
+      <div style="background:var(--surface2);border-radius:8px;padding:.75rem 1rem;margin-bottom:.5rem;border-left:3px solid var(--danger)">
+        <strong>${e(r.student_name)}</strong> — ${e(r.book_title)}<br/>
+        <small style="color:var(--text-muted)">Due: ${r.due_date} &nbsp;|&nbsp; <span style="color:var(--danger)">⚠️ ${r.days_late} days overdue</span></small>
+      </div>`).join('');
+    document.getElementById('overdue-modal').classList.remove('hidden');
+  }
+}
+function closeOverdue() { document.getElementById('overdue-modal').classList.add('hidden'); }
+
+// Dashboard
+function loadDashboard() {
+  const s=dbGetStats();
+  document.getElementById('stat-total-books').textContent=s.totalBooks;
+  document.getElementById('stat-lent').textContent=s.lent;
+  document.getElementById('stat-overdue').textContent=s.overdue;
+  document.getElementById('stat-students').textContent=s.students;
+  document.getElementById('overdue-count-badge').textContent=s.overdue;
+  const ov=dbGetOverdue();
+  document.querySelector('#overdue-table tbody').innerHTML=ov.length
+    ? ov.map(r=>`<tr><td>${e(r.student_name)}</td><td>${e(r.book_title)}</td><td>${r.due_date}</td><td><span class="badge badge-danger">+${r.days_late}d</span></td></tr>`).join('')
+    : `<tr><td colspan="4" class="empty-state">No overdue books 🎉</td></tr>`;
+  document.querySelector('#recent-books-table tbody').innerHTML=s.recentBooks.map(b=>`<tr><td>${e(b.title)}</td><td>${e(b.author)}</td><td><span class="badge badge-info">${b.category}</span></td><td>${b.total_copies}</td></tr>`).join('');
+}
+
+// Books
+function loadBooks() {
+  const search=v('book-search'), cat=v('category-filter');
+  const books=dbGetBooks(search,cat);
+  document.querySelector('#books-table tbody').innerHTML=books.length
+    ? books.map(b=>`
+      <tr>
+        <td style="color:var(--text-muted)">#${b.id}</td>
+        <td><strong>${e(b.title)}</strong></td>
+        <td>${e(b.author)}</td>
+        <td style="font-family:monospace;font-size:.78rem">${b.isbn||'—'}</td>
+        <td><span class="badge badge-info">${b.category}</span></td>
+        <td>${b.total_copies}</td>
+        <td><span class="badge ${b.available_copies>0?'badge-success':'badge-danger'}">${b.available_copies}</span></td>
+        <td style="color:var(--text-muted)">${b.added_on}</td>
+        <td><div class="action-btn-group">
+          <button class="btn btn-secondary btn-sm" onclick="openEditBook(${b.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBook(${b.id})">🗑️</button>
+        </div></td>
+      </tr>`).join('')
+    : `<tr><td colspan="9" class="empty-state">No books found. Add your first book!</td></tr>`;
+}
+function addBook() {
+  const t=v('book-title'), a=v('book-author'), n=parseInt(v('book-copies'));
+  if(!t||!a||!n||n<1){ showNotif('Title, Author and Copies are required.'); return; }
+  dbAddBook(t,a,v('book-isbn'),v('book-publisher'),v('book-category'),parseInt(v('book-year'))||null,n,v('book-shelf'));
+  closeModal('add-book-modal');
+  ['book-title','book-author','book-isbn','book-publisher','book-year','book-copies','book-shelf'].forEach(id=>setVal(id,''));
+  loadBooks(); populateLendDropdown();
+  showNotif(`"${t}" added successfully!`,'success');
+}
+function openEditBook(id) {
+  const b=dbGetBooks().find(x=>x.id===id); if(!b) return;
+  ['id','title','author','isbn','publisher','category','year','copies','shelf'].forEach((f,i)=>{
+    const val=[b.id,b.title,b.author,b.isbn||'',b.publisher||'',b.category,b.year||'',b.total_copies,b.shelf_location||''][i];
+    setVal(`edit-book-${f}`,val);
+  });
+  openModal('edit-book-modal');
+}
+function updateBook() {
+  const id=parseInt(v('edit-book-id')), t=v('edit-book-title'), a=v('edit-book-author'), n=parseInt(v('edit-book-copies'));
+  if(!t||!a||!n){ showNotif('Fill required fields.'); return; }
+  dbUpdateBook(id,t,a,v('edit-book-isbn'),v('edit-book-publisher'),v('edit-book-category'),parseInt(v('edit-book-year'))||null,n,v('edit-book-shelf'));
+  closeModal('edit-book-modal'); loadBooks(); populateLendDropdown();
+  showNotif('Book updated!','success');
+}
+function deleteBook(id) {
+  if(!confirm('Remove this book from inventory?')) return;
+  dbDeleteBook(id); loadBooks(); populateLendDropdown();
+  showNotif('Book removed.','info');
+}
+
+// Lend
+function populateLendDropdown() {
+  const sel=document.getElementById('lend-book-select');
+  sel.innerHTML=`<option value="">-- Select Available Book --</option>`+
+    dbGetAvailableBooks().map(b=>`<option value="${b.id}">${e(b.title)} — ${e(b.author)} (${b.available_copies} left)</option>`).join('');
+}
+function populateStudentList() {
+  document.getElementById('student-suggestions').innerHTML=
+    dbGetStudentNames().map(n=>`<option value="${e(n.name)}">`).join('');
+}
+document.addEventListener('input', ev => {
+  if(ev.target.id==='lend-days'||ev.target.id==='lend-date'){
+    const d=document.getElementById('lend-date').value, n=document.getElementById('lend-days').value;
+    if(d&&n){ const due=new Date(d); due.setDate(due.getDate()+parseInt(n)); document.getElementById('lend-due-date').value=due.toISOString().split('T')[0]; }
+  }
+});
+function lendBook() {
+  const name=v('lend-student-name'), phone=v('lend-student-phone'), email=v('lend-student-email');
+  const bookId=v('lend-book-select'), lendDate=v('lend-date'), days=parseInt(v('lend-days'));
+  const dueDate=document.getElementById('lend-due-date').value;
+  if(!name||!phone||!bookId||!lendDate||!days||!dueDate){ showNotif('Please fill all required fields.'); return; }
+  const student=dbGetOrCreateStudent(name,phone,email);
+  dbLendBook(student.id,parseInt(bookId),lendDate,dueDate,v('lend-notes'));
+  ['lend-student-name','lend-student-phone','lend-student-email','lend-days','lend-notes','lend-due-date'].forEach(id=>setVal(id,''));
+  document.getElementById('lend-book-select').value='';
+  populateLendDropdown(); populateStudentList();
+  showNotif(`Book issued to ${name} — due by ${dueDate}`,'success');
+}
+
+// Lending records
+function loadLending() {
+  const filter=v('lending-filter')||'all', search=v('lending-search');
+  const rows=dbGetLending(filter,search);
+  document.querySelector('#lending-table tbody').innerHTML=rows.length
+    ? rows.map(r=>{
+        const ov=(r.status==='active'||r.status==='overdue')&&new Date(r.due_date)<new Date()&&!r.return_date;
+        const badge=r.status==='returned'?`<span class="badge badge-success">Returned</span>`:ov?`<span class="badge badge-danger">Overdue</span>`:`<span class="badge badge-warning">Active</span>`;
+        const days=r.status!=='returned'?(r.days_late>0?`<span style="color:var(--danger)">+${r.days_late}d late</span>`:`<span style="color:var(--success)">On time</span>`):'—';
+        return `<tr>
+          <td style="color:var(--text-muted)">#${r.id}</td>
+          <td><strong>${e(r.student_name)}</strong></td>
+          <td style="color:var(--text-muted)">${e(r.phone)}</td>
+          <td>${e(r.book_title)}</td>
+          <td>${r.lend_date}</td><td>${r.due_date}</td>
+          <td>${badge}</td><td>${days}</td>
+          <td>${r.status!=='returned'?`<button class="btn btn-success btn-sm" onclick="returnBook(${r.id})">↩️ Return</button>`:`<span style="color:var(--text-muted);font-size:.78rem">Fine: ₹${r.fine_amount||0}</span>`}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="9" class="empty-state">No records found.</td></tr>`;
+}
+function returnBook(id) {
+  if(!confirm('Mark as returned?')) return;
+  const res=dbReturnBook(id);
+  if(res.fine>0) showNotif(`Returned! Fine: ₹${res.fine} (${res.daysLate} days late)`,'danger');
+  else showNotif('Book returned on time. No fine.','success');
+  loadLending(); loadDashboard();
+}
+
+// Students
+function loadStudents() {
+  document.querySelector('#students-table tbody').innerHTML=dbGetAllStudents().map(s=>`
+    <tr>
+      <td><strong>${e(s.name)}</strong></td>
+      <td style="font-family:monospace">${e(s.phone)}</td>
+      <td>${s.email?e(s.email):'—'}</td>
+      <td>${s.total_lent||0}</td>
+      <td><span class="badge badge-warning">${s.active_loans||0}</span></td>
+      <td><span class="badge badge-danger">${s.overdue_count||0}</span></td>
+    </tr>`).join('')||`<tr><td colspan="6" class="empty-state">No students yet.</td></tr>`;
+}
+
+// Return page
+function searchReturn() {
+  const search=v('return-search');
+  const rows=[...dbGetLending('active',search),...dbGetLending('overdue',search)].filter((r,i,a)=>a.findIndex(x=>x.id===r.id)===i);
+  document.querySelector('#return-table tbody').innerHTML=rows.length
+    ? rows.map(r=>{
+        const ov=new Date(r.due_date)<new Date();
+        const dl=ov?Math.floor((new Date()-new Date(r.due_date))/86400000):0;
+        const fine=dl*FINE_PER_DAY;
+        return `<tr>
+          <td><strong>${e(r.student_name)}</strong><br/><small style="color:var(--text-muted)">${r.phone}</small></td>
+          <td>${e(r.book_title)}</td><td>${r.due_date}</td>
+          <td>${ov?`<span class="badge badge-danger">Overdue (${dl}d)</span>`:`<span class="badge badge-success">On Time</span>`}</td>
+          <td style="${fine>0?'color:var(--danger);font-weight:600':''}">${fine>0?`₹${fine}`:'—'}</td>
+          <td><button class="btn btn-success btn-sm" onclick="processReturn(${r.id},'${e(r.student_name)}',${fine})">✅ Return</button></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="6" class="empty-state">${search?`No active loans for "${e(search)}"`:''}</td></tr>`;
+}
+function processReturn(id, name, fine) {
+  if(!confirm(fine>0?`Return for ${name}?\n\n⚠️ FINE DUE: ₹${fine}`:`Return for ${name}? No fine.`)) return;
+  dbReturnBook(id);
+  setVal('return-search',''); searchReturn(); loadDashboard();
+  showNotif(fine>0?`Returned. Fine: ₹${fine}`:`${name} returned on time!`, fine>0?'danger':'success');
+}
+
+// SQL Console
+function runSQL() {
+  const sql=document.getElementById('sql-console').value.trim(); if(!sql) return;
+  const res=execRaw(sql);
+  const container=document.getElementById('sql-result');
+  if(!res.ok){ container.innerHTML=`<div class="sql-error">❌ ${e(res.error)}</div>`; return; }
+  if(!res.results.length){ container.innerHTML=`<div style="color:var(--success);padding:.5rem">✅ Query executed successfully.</div>`; return; }
+  const {columns,values}=res.results[0];
+  container.innerHTML=`
+    <table class="data-table">
+      <thead><tr>${columns.map(c=>`<th>${e(c)}</th>`).join('')}</tr></thead>
+      <tbody>${values.map(row=>`<tr>${row.map(cell=>`<td>${e(String(cell??'NULL'))}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+    <div style="color:var(--text-muted);font-size:.78rem;margin-top:.4rem">${values.length} row(s)</div>`;
+}
+function clearSQL() { setVal('sql-console',''); document.getElementById('sql-result').innerHTML=''; }
+function quickReport(key) { setVal('sql-console',REPORT_QUERIES[key].trim()); runSQL(); }
+
+// Helpers
+function v(id) { return document.getElementById(id)?.value?.trim()||''; }
+function setVal(id,val) { const el=document.getElementById(id); if(el) el.value=val; }
+function e(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+document.addEventListener('keydown',ev=>{ if((ev.ctrlKey||ev.metaKey)&&ev.key==='Enter'&&document.activeElement.id==='sql-console') runSQL(); });
+</script>
+</body>
+</html>
