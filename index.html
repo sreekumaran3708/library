@@ -450,11 +450,7 @@ function seedSampleData() {
     db.run(`INSERT OR IGNORE INTO books (title,author,isbn,publisher,category,year,total_copies,available_copies) VALUES (?,?,?,?,?,?,?,?)`,[t,a,i,p,c,y,n,n]);
   });
   [
-    ['Arjun Sharma','9876543210','arjun@college.edu'],
-    ['Priya Nair','9876543211','priya@college.edu'],
-    ['Rahul Verma','9876543212','rahul@college.edu'],
-    ['Ananya Iyer','9876543213','ananya@college.edu'],
-  ].forEach(([n,p,e]) => db.run(`INSERT OR IGNORE INTO students (name,phone,email) VALUES (?,?,?)`,[n,p,e]));
+  .forEach(([n,p,e]) => db.run(`INSERT OR IGNORE INTO students (name,phone,email) VALUES (?,?,?)`,[n,p,e]));
   saveDB();
 }
 
